@@ -1,0 +1,240 @@
+---
+title: "What Determines House Prices in King County, USA?"
+author: "Mariam Badmus"
+date: "26-10-2022"
+output: 
+ html_document:
+  toc_depth: 3
+
+---
+
+\newpage 
+\tableofcontents 
+\newpage
+
+
+
+### 1.   Read the data
+
+```{r}
+kc_house_data <- read.csv("kc_house_data.csv")
+```
+
+
+```{r load kc_house_data, include=TRUE, message= FALSE, warning=FALSE, echo = TRUE, eval= FALSE}
+
+load("C:/Users/kike_/OneDrive/Documents/house_prediction/predicting_house_price_in_kingcounty_usa.RData")
+```
+
+
+
+
+### 2.     Install Packages
+
+```{r}
+library(psych)
+library(graphics)
+library(corrplot)
+library(ggplot2)
+library(tidyr)
+library(reshape2)
+library(dplyr)
+```
+
+
+
+
+### 3.     Inspecting data 
+```{r}
+glimpse(kc_house_data)
+```
+
+
+
+
+### 4.     Checking for duplicates: we have zero duplicate  in our data 
+
+```{r}
+sum(duplicated(kc_house_data)) 
+
+```
+
+
+
+
+### 5.     Check the relationships between price and other variables
+
+Using library(psych) to create scatter plot to pinpoint possible relationships between price and other variables. According to the scatterplots below, only sqft livng and sqft above have a relationship  with price, which make them suitable for a  regression. 
+
+
+```{r}
+ kc_melt <- melt(kc_house_data, id.vars = "price", measure.vars = c("sqft_living", "grade" , "bathrooms" , "sqft_above", "sqft_living15", "sqft_living",
+  "bedrooms", "floors", "sqft_basement", "lat", "view", "condition", "yr_built", "yr_renovated", "long", "sqft_lot15" , "zipcode" ,  "sqft_lot"))
+
+
+ggplot(kc_melt,(aes(x = value, y = price)))+
+  geom_point()+
+  geom_smooth ()+
+  facet_wrap(vars(variable), scales= "free")+
+  ggtitle('Graph 1: Scatterplots of Price against Other variables')
+
+
+ggplot(kc_house_data[,3:21], aes(x = sqft_living, y = price))+ #visualising sqft_living independently
+  geom_smooth(aes())+
+   scale_y_continuous(limits = c(0, 8000000), breaks = seq(0, 8000000, by = 500000), labels = scales::comma)+
+   ggtitle('Graph 2: Scatterplots of Price Sqft_Living')
+
+
+ggplot(kc_house_data[,3:21], aes(x = sqft_above, y = price))+ 
+  geom_smooth(aes())+
+   scale_y_continuous(limits = c(0, 8000000), breaks = seq(0, 8000000, by = 500000), labels = scales::comma)+
+    ggtitle('Graph 3: Scatterplots of Price Sqft_Above')
+```
+
+
+
+
+
+### 6.     Finding the corrrelation between  variables from column 3 and column 21 and multicolinearity amongst the other variables with texts
+
+This data set has more than three independent variables set so it will be difficult to determine if all variables are correlated with 2d or 3d plots.
+
+```{r}
+
+correlation <- cor(kc_house_data[,3:21])
+levels <- colnames(kc_house_data[,3:21])
+
+ correlation %>% 
+  data.frame() %>% 
+  mutate(row = factor(rownames(.), levels = levels),  rowid  = as.numeric(row)) %>% #as factor level by col_names in levels
+  pivot_longer(-c(row, rowid), names_to = "col") %>% #row and rowid as column...col as 2nd column
+  mutate(col = factor(col, levels = levels),  colid  = as.numeric(col)) %>% 
+  ggplot2::ggplot(aes(col,row))+
+  geom_text(aes(label = scales::number(value, accuracy = .01), color = abs(value)), #access number from scale function #round value to two decimal digits
+            size = 2.5) +
+  scale_x_discrete(labels = ~ attr(.x, "pos"), drop = FALSE) + #setting the value of x independent of no variable
+  scale_y_discrete(labels = ~ paste0(.x, " (", attr(.x, "pos"), ")"), drop = FALSE)+ #concatenate y axis with brackets with x independent of no variable
+     ggtitle('Graph 4: Correlation Matrix for All Variables')
+ 
+corrplot(cor(kc_house_data[,3:21]), method = "circle")
+```
+
+
+### 7.     Using lm function to build our linear regression model using variables where correlation >= 0.7 and visualising 
+
+
+```{r}
+price_sqftliving <- lm(price ~ sqft_living , data = kc_house_data)
+
+summary(price_sqftliving)
+
+plot(price_sqftliving)
+
+abline(price_sqftliving) 
+
+
+
+```
+
+Living space has the strongest correlation with prices at r = 0.70
+
+
+
+### 8.    Using the moderate correlated variables and use it to build a prediction model 
+
+
+```{r}
+living_above <- lm(price ~ sqft_living, data = kc_house_data)
+  
+summary(living_above)
+
+plot(living_above)
+
+abline(living_above)
+```
+
+
+### 9.    Add all the Variables
+
+```{r}
+price_alldata <- lm(price ~ sqft_living + grade  + bathrooms + sqft_above +sqft_living15 + sqft_living + 
+  bedrooms + floors + sqft_basement + lat +  view + condition + yr_built + yr_renovated + long + sqft_lot15 
+  + zipcode + sqft_lot, data = kc_house_data)
+
+summary(price_alldata)
+
+plot(price_alldata)
+
+abline(price_alldata)
+```
+
+
+
+
+
+### 10.    Test price y within the range of the three multiple regression built using R squared Adjusted; compare it to the observed data
+Simple linear regression is y = b + mx #b = intercept, x = slope and the other varibales with multiple regression using y = y = b1x1 + b2x2 + … + bnxn + c.
+
+```{r}
+#sqft_living- let give x = 1960 in observation 4
+-43580.743 + 280.624 * 1960
+
+#for price against  sqft_living sqft_above 
+ -40859.96 +  (295.50 * 1960) + (-18.83 * 1050)
+
+#for price against
+-7.522e+06 + (1.505e+02  * 1960) + (9.414e+04 * 7) + (4.061e+04 * 3.00) + (3.645e+01 * 1050) + (1.835e+0 * 1360) + (-3.862e+04 * 4) + (7.099e+03 * 1.0) + (5.998e+05  * 47.5208) + (7.980e+04 * 0) + (2.720e+04 * 5) + (-2.590e+03  * 1965) + (2.663e+01  * 0) + (-2.229e+05 * -122.393) + ( -3.543e-01 * 5000) + (-6.001e+02 * 98136) + (1.010e-01  * 5000)
+```
+
+
+
+
+
+
+### 12.   Predict y with a random x variable
+
+Prediciting house price with sqft_lving as an independent variable provides a price close to the actual price value in the data, adding sqft_above increased the price but not by a lot but still within the price in obseravtion 4 of the main data. It si best to leave out sqft_above given the high correlation fo both data at 0.88.I will be plotting the regression graph using the intercept and slope given for value of price and sqft_living. 
+
+
+```{r}
+
+-43580.743 + 280.624 * 3000 #using a randome x variable of 3000 sqft_living then compare the results to graph 6 below
+
+ggplot2::ggplot(kc_house_data[,3:21], aes(x = sqft_living, y = price))+ #visualising sqft_living independently
+  geom_smooth(aes())+
+   scale_y_continuous(limits = c(0, 8000000), breaks = seq(0, 8000000, by = 500000), labels = scales::comma)+
+  scale_x_continuous(limits = c(0, 14000), breaks = seq(0, 14000, by = 2000), labels = scales::comma)+
+    ggtitle('Graph 5: Compare Predicted Value for Y with Actual Data Points')
+
+
+
+xs <- kc_house_data[,6]
+ys = kc_house_data[,3]
+
+plot(xs,ys)
+abline(a = -43580.743, b = 280.624)
+```
+
+
+
+
+
+### 13.    Conclusion
+
+The y intercept for price(dependent variable) is negative when x(independent variable) is which does not apply to practical because a price cannot be negative without a living space. Using multiple regression have proven to be poorly suited to predict house prices in King county, USA using other variables outside sqft_living. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
